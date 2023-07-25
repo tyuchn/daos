@@ -359,7 +359,6 @@ main(int argc, char **argv)
 	struct dfuse_info            *dfuse_info                             = NULL;
 	struct dfuse_pool            *dfp                                    = NULL;
 	struct dfuse_cont            *dfs                                    = NULL;
-	struct duns_attr_t            duns_attr                              = {};
 	uuid_t                        cont_uuid                              = {};
 	char                          pool_name[DAOS_PROP_LABEL_MAX_LEN + 1] = {};
 	char                          cont_name[DAOS_PROP_LABEL_MAX_LEN + 1] = {};
@@ -605,43 +604,6 @@ main(int argc, char **argv)
 		strncpy(pool_name, path_attr.da_pool, DAOS_PROP_LABEL_MAX_LEN + 1);
 		strncpy(cont_name, path_attr.da_cont, DAOS_PROP_LABEL_MAX_LEN + 1);
 		duns_destroy_attr(&path_attr);
-	}
-
-	/* Check for attributes on the mount point itself to use.
-	 * Abort if path exists and mountpoint has attrs as both should not be
-	 * set, but if nothing exists on the mountpoint then this is not an
-	 * error so keep going.
-	 */
-	duns_attr.da_flags = DUNS_NO_REVERSE_LOOKUP;
-	rc = duns_resolve_path(dfuse_info->di_mountpoint, &duns_attr);
-	DFUSE_TRA_INFO(dfuse_info, "duns_resolve_path() on mountpoint returned: %d (%s)", rc,
-		       strerror(rc));
-	if (rc == 0) {
-		if (pool_name[0]) {
-			printf("Pool specified multiple ways\n");
-			D_GOTO(out_daos, rc = -DER_INVAL);
-		}
-		/* If path was set, and is different to mountpoint then abort.
-		 */
-		if (path && (strcmp(path, dfuse_info->di_mountpoint) == 0)) {
-			printf("Attributes set on both path and mountpoint\n");
-			D_GOTO(out_daos, rc = -DER_INVAL);
-		}
-
-		strncpy(pool_name, duns_attr.da_pool, DAOS_PROP_LABEL_MAX_LEN + 1);
-		strncpy(cont_name, duns_attr.da_cont, DAOS_PROP_LABEL_MAX_LEN + 1);
-		duns_destroy_attr(&duns_attr);
-
-	} else if (rc == ENOENT) {
-		printf("Mount point does not exist\n");
-		D_GOTO(out_daos, rc = daos_errno2der(rc));
-	} else if (rc == ENOTCONN) {
-		printf("Stale mount point, run fusermount3 and retry\n");
-		D_GOTO(out_daos, rc = daos_errno2der(rc));
-	} else if (rc != ENODATA && rc != ENOTSUP) {
-		/* DUNS may have logged this already but won't have printed anything */
-		printf("Error resolving mount point: %d (%s)\n", rc, strerror(rc));
-		D_GOTO(out_daos, rc = daos_errno2der(rc));
 	}
 
 	/* Connect to a pool. */
